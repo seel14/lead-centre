@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 interface Page { id: string; name: string }
 interface Form { id: string; name: string; leads_count: number }
 
 export default function Home() {
+  const [token, setToken] = useState("");
+  const [tokenSaved, setTokenSaved] = useState(false);
   const [pages, setPages] = useState<Page[]>([]);
   const [forms, setForms] = useState<Form[]>([]);
   const [pageId, setPageId] = useState("");
@@ -18,31 +20,55 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState("");
 
-  useEffect(() => {
-    fetch("/api/pages").then(r => r.json()).then(data => {
+  async function handleLoadPages() {
+    if (!token.trim()) return;
+    setStatus("กำลังโหลด pages...");
+    setPages([]);
+    setForms([]);
+    setPageId("");
+    setFormId("");
+    try {
+      const res = await fetch(`/api/pages?token=${encodeURIComponent(token.trim())}`);
+      const data = await res.json();
+      if (data.error) { setStatus("❌ " + data.error); return; }
       setPages(data);
-      if (data[0]) setPageId(data[0].id);
-    });
-  }, []);
+      if (data[0]) {
+        setPageId(data[0].id);
+        await loadForms(data[0].id, token.trim());
+      }
+      setTokenSaved(true);
+      setStatus("");
+    } catch {
+      setStatus("❌ เกิดข้อผิดพลาด");
+    }
+  }
 
-  useEffect(() => {
-    if (!pageId) return;
+  async function loadForms(pid: string, tok: string) {
     setForms([]);
     setFormId("");
-    fetch(`/api/forms?pageId=${pageId}`).then(r => r.json()).then(data => {
-      setForms(data);
-      if (data[0]) setFormId(data[0].id);
-    });
-  }, [pageId]);
+    const res = await fetch(`/api/forms?pageId=${pid}&token=${encodeURIComponent(tok)}`);
+    const data = await res.json();
+    setForms(data);
+    if (data[0]) setFormId(data[0].id);
+  }
+
+  async function handlePageChange(pid: string) {
+    setPageId(pid);
+    await loadForms(pid, token.trim());
+  }
 
   async function handleExport() {
     if (!pageId || !formId) return;
     setLoading(true);
     setStatus("กำลัง export...");
     try {
-      const url = `/api/export?pageId=${pageId}&formId=${formId}&since=${since}&until=${until}`;
+      const url = `/api/export?pageId=${pageId}&formId=${formId}&since=${since}&until=${until}&token=${encodeURIComponent(token.trim())}`;
       const res = await fetch(url);
-      if (!res.ok) { setStatus("❌ Export ล้มเหลว"); return; }
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        setStatus("❌ " + (err.error ?? "Export ล้มเหลว"));
+        return;
+      }
       const blob = await res.blob();
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
@@ -72,74 +98,102 @@ export default function Home() {
         </div>
 
         <div className="space-y-5">
+          {/* Token input */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Page</label>
-            <select
-              value={pageId}
-              onChange={e => setPageId(e.target.value)}
-              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              {pages.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Lead Form</label>
-            <select
-              value={formId}
-              onChange={e => setFormId(e.target.value)}
-              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              {forms.length === 0 && <option>กำลังโหลด...</option>}
-              {forms.map(f => (
-                <option key={f.id} value={f.id}>{f.name} ({f.leads_count} leads)</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">ตั้งแต่วันที่</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              Meta Access Token
+            </label>
+            <div className="flex gap-2">
               <input
-                type="date"
-                value={since}
-                onChange={e => setSince(e.target.value)}
-                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                type="password"
+                value={token}
+                onChange={e => { setToken(e.target.value); setTokenSaved(false); }}
+                placeholder="EAAj..."
+                className="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
+              <button
+                onClick={handleLoadPages}
+                disabled={!token.trim()}
+                className="px-4 py-2.5 bg-gray-900 hover:bg-gray-700 disabled:bg-gray-300 text-white text-sm font-medium rounded-xl transition-colors whitespace-nowrap"
+              >
+                โหลด
+              </button>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">ถึงวันที่</label>
-              <input
-                type="date"
-                value={until}
-                onChange={e => setUntil(e.target.value)}
-                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
+            {tokenSaved && <p className="text-xs text-green-600 mt-1">✓ โหลด pages สำเร็จ</p>}
           </div>
 
-          <button
-            onClick={handleExport}
-            disabled={loading || !formId}
-            className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white font-semibold rounded-xl py-3 text-sm transition-colors flex items-center justify-center gap-2"
-          >
-            {loading ? (
-              <>
-                <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
-                </svg>
-                กำลัง export...
-              </>
-            ) : (
-              <>
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-                </svg>
-                Export Excel
-              </>
-            )}
-          </button>
+          {pages.length > 0 && (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Page</label>
+                <select
+                  value={pageId}
+                  onChange={e => handlePageChange(e.target.value)}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  {pages.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Lead Form</label>
+                <select
+                  value={formId}
+                  onChange={e => setFormId(e.target.value)}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  {forms.length === 0 && <option>กำลังโหลด...</option>}
+                  {forms.map(f => (
+                    <option key={f.id} value={f.id}>{f.name} ({f.leads_count} leads)</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">ตั้งแต่วันที่</label>
+                  <input
+                    type="date"
+                    value={since}
+                    onChange={e => setSince(e.target.value)}
+                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">ถึงวันที่</label>
+                  <input
+                    type="date"
+                    value={until}
+                    onChange={e => setUntil(e.target.value)}
+                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              <button
+                onClick={handleExport}
+                disabled={loading || !formId}
+                className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white font-semibold rounded-xl py-3 text-sm transition-colors flex items-center justify-center gap-2"
+              >
+                {loading ? (
+                  <>
+                    <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                    </svg>
+                    กำลัง export...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                    </svg>
+                    Export Excel
+                  </>
+                )}
+              </button>
+            </>
+          )}
 
           {status && (
             <p className="text-center text-sm text-gray-600">{status}</p>

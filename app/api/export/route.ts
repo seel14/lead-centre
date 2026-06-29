@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
 import * as XLSX from "xlsx";
 
-const TOKEN = process.env.META_TOKEN!;
 const BASE = "https://graph.facebook.com/v21.0";
 
-async function getPageToken(pageId: string): Promise<string> {
+async function getPageToken(TOKEN: string, pageId: string): Promise<string> {
   const debug = await fetch(`${BASE}/debug_token?input_token=${TOKEN}&access_token=${TOKEN}`).then(r => r.json());
   if (debug.data?.type === "PAGE" && debug.data?.profile_id === pageId) return TOKEN;
 
@@ -41,11 +40,13 @@ export async function GET(req: Request) {
   const since = searchParams.get("since");
   const until = searchParams.get("until");
 
+  const TOKEN = searchParams.get("token") ?? process.env.META_TOKEN ?? "";
   if (!pageId || !formId) {
     return NextResponse.json({ error: "pageId and formId required" }, { status: 400 });
   }
+  if (!TOKEN) return NextResponse.json({ error: "token required" }, { status: 400 });
 
-  const pageToken = await getPageToken(pageId);
+  const pageToken = await getPageToken(TOKEN, pageId);
   const sinceTs = since ? Math.floor(new Date(since).getTime() / 1000) : null;
   const untilTs = until ? Math.floor(new Date(until + "T23:59:59").getTime() / 1000) : null;
 
