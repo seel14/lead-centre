@@ -77,14 +77,14 @@ export default function Home() {
 
   function handleFbLogin() {
     if (!window.FB) return;
-    window.FB.login(async (res) => {
+    window.FB.login((res) => {
       if (!res.authResponse?.accessToken) return;
       const tok = res.authResponse.accessToken;
       setToken(tok);
-      // get user name
-      const me = await fetch(`https://graph.facebook.com/v21.0/me?fields=name&access_token=${tok}`).then(r => r.json());
-      setUserName(me.name ?? "");
-      await loadPages(tok);
+      fetch(`https://graph.facebook.com/v21.0/me?fields=name&access_token=${tok}`)
+        .then(r => r.json())
+        .then(me => setUserName(me.name ?? ""));
+      loadPages(tok);
     }, { scope: "pages_show_list,leads_retrieval,pages_manage_ads,pages_read_engagement" });
   }
 
