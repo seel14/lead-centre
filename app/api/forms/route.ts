@@ -4,6 +4,11 @@ const TOKEN = process.env.META_TOKEN!;
 const BASE = "https://graph.facebook.com/v21.0";
 
 async function getPageToken(pageId: string): Promise<string> {
+  // if TOKEN is already a page token for this page, use it directly
+  const debug = await fetch(`${BASE}/debug_token?input_token=${TOKEN}&access_token=${TOKEN}`).then(r => r.json());
+  if (debug.data?.type === "PAGE" && debug.data?.profile_id === pageId) return TOKEN;
+
+  // user token — exchange for page token
   const res = await fetch(`${BASE}/me/accounts?fields=id,access_token&access_token=${TOKEN}`);
   const data = await res.json();
   const page = data.data?.find((p: { id: string }) => p.id === pageId);

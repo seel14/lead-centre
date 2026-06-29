@@ -5,6 +5,9 @@ const TOKEN = process.env.META_TOKEN!;
 const BASE = "https://graph.facebook.com/v21.0";
 
 async function getPageToken(pageId: string): Promise<string> {
+  const debug = await fetch(`${BASE}/debug_token?input_token=${TOKEN}&access_token=${TOKEN}`).then(r => r.json());
+  if (debug.data?.type === "PAGE" && debug.data?.profile_id === pageId) return TOKEN;
+
   const res = await fetch(`${BASE}/me/accounts?fields=id,access_token&access_token=${TOKEN}`);
   const data = await res.json();
   const page = data.data?.find((p: { id: string }) => p.id === pageId);
@@ -62,7 +65,6 @@ export async function GET(req: Request) {
     leads = leads.filter((l) => Math.floor(new Date(l.created_time).getTime() / 1000) <= untilTs);
   }
 
-  // collect all field keys
   const keys: string[] = [];
   for (const lead of leads) {
     for (const f of lead.field_data ?? []) {
@@ -85,7 +87,7 @@ export async function GET(req: Request) {
   return new NextResponse(buf, {
     headers: {
       "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      "Content-Disposition": `attachment; filename="leads_${formId}_${since ?? "all"}.xlsx"`,
+      "Content-Disposition": `attachment; filename="leads_${since ?? "all"}_${until ?? "all"}.xlsx"`,
     },
   });
 }
