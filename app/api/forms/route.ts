@@ -14,7 +14,7 @@ async function paginate(url: string): Promise<object[]> {
   const results: object[] = [];
   let next: string | null = url;
   while (next) {
-    const res = await fetch(next);
+    const res: Response = await fetch(next);
     const data = await res.json();
     results.push(...(data.data ?? []));
     next = data.paging?.next ?? null;
