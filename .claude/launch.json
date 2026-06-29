@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "lead-centre",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "cwd": "/Users/seeljitman/Desktop/seven-eleven/lead-centre",
+      "port": 3000
+    }
+  ]
+}
